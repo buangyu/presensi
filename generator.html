@@ -1,1 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Monitor QR Presensi Kantor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body class="bg-slate-900 min-h-screen flex flex-col items-center justify-center p-6 text-white font-sans">
 
+  <div class="text-center max-w-xl w-full bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700">
+    <h1 class="text-3xl font-extrabold tracking-wide text-blue-400 mb-2">DOCKING QR PRESENSI</h1>
+    <p class="text-slate-400 text-sm mb-6">Silakan pindai menggunakan aplikasi HP dalam radius kantor</p>
+
+    <div class="flex justify-center mb-6">
+      <div class="p-4 bg-white rounded-2xl shadow-inner border-4 border-blue-500 flex items-center justify-center min-h-[332px] min-w-[332px]">
+        <div id="qrcode"></div>
+      </div>
+    </div>
+
+    <div class="w-full bg-slate-700 h-2 rounded-full overflow-hidden mb-4">
+      <div id="progress-bar" class="bg-blue-500 h-full w-full transition-all duration-1000 ease-linear"></div>
+    </div>
+
+    <div class="flex justify-between items-center px-2 text-sm text-slate-400">
+      <div id="jam-digital" class="font-mono text-lg text-slate-200">00:00:00</div>
+      <div id="countdown-text" class="font-semibold text-amber-400">QR Code berganti dalam 10s</div>
+    </div>
+  </div>
+
+  <script>
+    const REFRESH_RATE = 10; // QR code berubah setiap 10 detik
+    let waktuTersisa = REFRESH_RATE;
+    let qrGenerator;
+
+    // Inisialisasi awal library QRCode (Ukuran 300x300 px)
+    window.onload = function() {
+      qrGenerator = new QRCode(document.getElementById("qrcode"), {
+        width: 300,
+        height: 300,
+        correctLevel: QRCode.CorrectLevel.H
+      });
+      
+      updateSistem();
+      setInterval(jalankanTimer, 1000);
+    };
+
+    function updateSistem() {
+      const sekarang = new Date();
+      const timestamp = sekarang.getTime();
+      
+      // Format isi QR Code: TIMESTAMP (Sesuai dengan logika split("_")[0] di Google Sheets)
+      // Ditambah teks dummy di belakang sebagai pemanis jika dibutuhkan
+      const isiQR = timestamp + "_KANTOR_UTAMA_SECURE";
+      
+      // Update Gambar QR Code
+      qrGenerator.clear();
+      qrGenerator.makeCode(isiQR);
+      
+      // Reset Countdown
+      waktuTersisa = REFRESH_RATE;
+    }
+
+    function jalankanTimer() {
+      // 1. Update Jam Digital Layar
+      const sekarang = new Date();
+      document.getElementById("jam-digital").innerText = sekarang.toLocaleTimeString('id-ID');
+
+      // 2. Hitung Mundur QR
+      waktuTersisa--;
+      document.getElementById("countdown-text").innerText = `QR Code berganti dalam ${waktuTersisa}s`;
+      
+      // Update Visual Progress Bar
+      const persenProgress = (waktuTersisa / REFRESH_RATE) * 100;
+      document.getElementById("progress-bar").style.width = persenProgress + "%";
+
+      // Jika waktu habis, generate QR baru
+      if (waktuTersisa <= 0) {
+        updateSistem();
+      }
+    }
+  </script>
+</body>
+</html>
