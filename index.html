@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Scanner Presensi</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
+
+  <div class="bg-white p-6 rounded-2xl shadow-lg w-full max-w-md">
+    <h2 class="text-2xl font-bold text-center text-blue-600 mb-6">PRESENSI QR & GPS</h2>
+    
+    <div class="space-y-4 mb-6" id="form-container">
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">ID Pegawai</label>
+        <input type="text" id="id_pegawai" placeholder="Contoh: P001" class="w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Tipe Presensi</label>
+        <select id="tipe_presensi" class="w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="MASUK">MASUK</option>
+          <option value="PULANG">PULANG</option>
+        </select>
+      </div>
+      <button onclick="inisialisasiAplikasi()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition shadow-md">
+        Buka Kamera & GPS
+      </button>
+    </div>
+
+    <div id="scanner-container" class="hidden space-y-4">
+      <div id="reader" class="w-full min-h-[260px] overflow-hidden rounded-xl border-2 border-dashed border-gray-300 bg-black"></div>
+      <p id="status-text" class="text-center text-sm font-medium text-gray-500 animate-pulse">Mengunci Sinyal GPS...</p>
+      <button onclick="resetAplikasi()" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 rounded-xl transition">
+        Kembali
+      </button>
+    </div>
+
+    <div id="result-container" class="hidden p-4 rounded-xl text-center font-bold text-lg"></div>
+  </div>
+
+  <script>
+    // ⚠️ GANTI DENGAN URL WEB APP GOOGLE SCRIPT KAMU NANTI
+    const WEB_APP_URL = "URL_WEB_APP_GOOGLE_KAMU_DI_SINI"; 
+
+    let html5QrcodeScanner;
+    let userLatitude = null;
+    let userLongitude = null;
+
+    function inisialisasiAplikasi() {
+      const idPegawai = document.getElementById('id_pegawai').value.trim();
+      if (!idPegawai) {
+        alert('Silakan masukkan ID Pegawai!');
+        return;
+      }
+
+      document.getElementById('form-container').classList.add('hidden');
+      document.getElementById('scanner-container').classList.remove('hidden');
+
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          function(position) {
+            userLatitude = position.coords.latitude;
+            userLongitude = position.coords.longitude;
+            document.getElementById('status-text').innerText = "GPS Terkunci. Mengaktifkan kamera...";
+            startCamera();
+          },
+          function(error) {
+            alert("Gagal mengunci GPS. Pastikan izin lokasi aktif!");
+            resetAplikasi();
+          },
+          { enableHighAccuracy: true }
+        );
+      } else {
+        alert("Browser tidak mendukung GPS.");
+        resetAplikasi();
+      }
+    }
+
+    function startCamera() {
+      html5QrcodeScanner = new Html5Qrcode("reader");
+      html5QrcodeScanner.start(
+        { facingMode: "environment" }, 
+        { fps: 10, qrbox: { width: 250, height: 250 } }, 
+        onScanSuccess
+      ).catch(err => {
+        alert("Gagal membuka kamera: " + err);
+        resetAplikasi();
+      });
+    }
+
+    function onScanSuccess(decodedText, decodedResult) {
+      html5QrcodeScanner.stop().then(() => {
+        document.getElementById('status-text').innerText = "Mengirim data ke Google Sheets...";
+
+        const payload = {
+          id_pegawai: document.getElementById('id_pegawai').value.trim(),
+          tipe: document.getElementById('tipe_presensi').value,
+          latitude: userLatitude,
+          longitude: userLongitude,
+          qr_content: decodedText
+        };
+
+        // Mengirim data menggunakan FETCH API ke Google Apps Script
+        fetch(WEB_APP_URL, {
+          method: "POST",
+          body: JSON.stringify(payload)
+        })
+        .then(response => response.json())
+        .then(data => showResult(data))
+        .catch(err => showError(err));
+      });
+    }
+
+    function showResult(response) {
+      document.getElementById('scanner-container').classList.add('hidden');
+      const resContainer = document.getElementById('result-container');
+      resContainer.classList.remove('hidden');
+
+      if (response.status === "SUKSES") {
+        resContainer.className = "p-4 rounded-xl text-center font-bold text-lg bg-green-100 text-green-800";
+        resContainer.innerHTML = `🎉 ${response.pesan}<br><button onclick="resetAplikasi()" class="mt-4 text-sm bg-green-700 text-white px-4 py-2 rounded-lg">Selesai</button>`;
+      } else {
+        resContainer.className = "p-4 rounded-xl text-center font-bold text-lg bg-red-100 text-red-800";
+        resContainer.innerHTML = `❌ ${response.pesan}<br><button onclick="resetAplikasi()" class="mt-4 text-sm bg-red-700 text-white px-4 py-2 rounded-lg">Coba Lagi</button>`;
+      }
+    }
+
+    function showError(err) {
+      alert("Koneksi gagal atau QR salah: " + err);
+      resetAplikasi();
+    }
+
+    function resetAplikasi() {
+      if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
+        html5QrcodeScanner.stop();
+      }
+      document.getElementById('form-container').classList.remove('hidden');
+      document.getElementById('scanner-container').classList.add('hidden');
+      document.getElementById('result-container').classList.add('hidden');
+      document.getElementById('status-text').innerText = "Mengunci Sinyal GPS...";
+    }
+  </script>
+</body>
+</html>
