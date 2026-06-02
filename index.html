@@ -104,12 +104,20 @@
         // Mengirim data menggunakan FETCH API ke Google Apps Script
         fetch(WEB_APP_URL, {
           method: "POST",
+          mode: "cors", // <--- Menegaskan mode Cross-Origin
+          headers: {
+            "Content-Type": "text/plain;charset=utf-8" // <--- Menggunakan text/plain menghindari pra-pemeriksaan CORS yang ketat
+          },
           body: JSON.stringify(payload)
         })
-        .then(response => response.json())
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Respon jaringan tidak mumpuni');
+          }
+          return response.json();
+        })
         .then(data => showResult(data))
         .catch(err => showError(err));
-      });
     }
 
     function showResult(response) {
